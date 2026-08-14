@@ -122,17 +122,31 @@ co.eci.snake
 
 ### 2) Correcciones mínimas y regiones críticas
 
-- **Elimina** esperas activas reemplazándolas por **señales** / **estados** o mecanismos de la librería de concurrencia.
-- Protege **solo** las **regiones críticas estrictamente necesarias** (evita bloqueos amplios).
-- Justifica en **`el reporte de laboratorio`** cada cambio: cuál era el riesgo y cómo lo resuelves.
+#### A. Eliminación de esperas activas y suspensión pasiva
+* **Mecanismo de monitor (`wait()` / `notifyAll()`):** Se implementó el método `awaitIfPaused()` en `GameClock.java`. Los hilos virtuales de `SnakeRunner` consultan este método en cada ciclo antes de avanzar.
+* **Comportamiento sin *busy-waiting*:** Mientras el estado del juego sea `PAUSED`, los hilos entran en suspensión pasiva mediante `pauseLock.wait()` liberando el procesador. Al reanudar (`clock.resume()`), se invoca `pauseLock.notifyAll()`, reactivando inmediatamente todas las serpientes.
+
+#### B. Reducción de granularidad de bloqueo (*Fine-Grained Locking*) y colecciones concurrentes
+* **Tablero (`Board.java`):** Se eliminó el modificador `synchronized` a nivel de todo el método `step(Snake)` y de los métodos de consulta. Las colecciones de `mice`, `obstacles` y `turbo` se migraron a `ConcurrentHashMap.newKeySet()`, y `teleports` a `ConcurrentHashMap`. Esto elimina la contención global entre las $N$ serpientes y entre la UI y los hilos.
+* **Cuerpo de la serpiente (`Snake.java`):** Se protegieron con `synchronized` exclusivamente los accesos a `body` (`advance`, `head`, `snapshot`, `length`, `contains`), garantizando que la UI pueda extraer instantáneas seguras (`snapshot()`) sin generar `ConcurrentModificationException` ni lecturas corruptas (*data tearing*).
+* **Registro seguro del orden de defunciones:** Se utiliza una lista concurrente `CopyOnWriteArrayList<Snake>` en `Board` para registrar de manera atómica e inmutable el orden exacto en que las serpientes colisionan y mueren (`recordDeath()`).
+
+---
 
 ### 3) Control de ejecución seguro (UI)
 
-- Implementa la **UI** con **Iniciar / Pausar / Reanudar** (ya existe el botón _Action_ y el reloj `GameClock`).
-- Al **Pausar**, muestra de forma **consistente** (sin _tearing_):
-  - La **serpiente viva más larga**.
-  - La **peor serpiente** (la que **primero murió**).
-- Considera que la suspensión **no es instantánea**; coordina para que el estado mostrado no quede “a medias”.
+#### A. Ciclo de Vida: Iniciar / Pausar / Reanudar
+* **Máquina de estados integrada:** Se implementó el flujo completo de tres estados en `SnakeApp.java`:
+  * **Iniciar:** Estado inicial `STOPPED`. Al presionar el botón *"Iniciar"* (o barra espaciadora), se lanzan los hilos virtuales de cada serpiente y se arranca el `GameClock`.
+  * **Pausar:** Estado `RUNNING` pasa a `PAUSED`. Suspende el reloj de repintado y pone en espera pasiva a los hilos de las serpientes.
+  * **Reanudar:** Estado `PAUSED` regresa a `RUNNING`. Se reactivan los hilos mediante `notifyAll()` y se continúa el repintado a 60 FPS.
+
+#### B. Visualización de estadísticas consistentes sin *data tearing*
+* Al entrar en pausa, se realiza una consulta sincronizada sobre el estado consolidado de las serpientes:
+  1. **🏆 Serpiente viva más larga:** Se obtiene mediante `snakes.stream().filter(Snake::isAlive).max(Comparator.comparingInt(Snake::length))`, mostrando su ID, longitud en casillas y coordenadas actuales de la cabeza.
+  2. **💀 Peor serpiente (la que primero murió):** Se consulta la primera posición de `board.deathOrder()`, indicando su ID y longitud final al momento del impacto (o informando si ninguna ha muerto).
+  3. **Resumen de carrera:** Conteo de serpientes activas vs eliminadas.
+* Se despliega un diálogo emergente con formato claro y estilizado. Al reanudar, la partida continúa desde el punto exacto de suspensión.
 
 ### 4) Robustez bajo carga
 

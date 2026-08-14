@@ -122,9 +122,63 @@ co.eci.snake
 
 ### 2) Correcciones mínimas y regiones críticas
 
-- **Elimina** esperas activas reemplazándolas por **señales** / **estados** o mecanismos de la librería de concurrencia.
-- Protege **solo** las **regiones críticas estrictamente necesarias** (evita bloqueos amplios).
-- Justifica en **`el reporte de laboratorio`** cada cambio: cuál era el riesgo y cómo lo resuelves.
+A continuación se documentan las correcciones implementadas en el código, los riesgos detectados y la justificación técnica de la sincronización de grano fino aplicada:
+
+---
+
+#### A. Eliminación de Esperas Activas y Mecanismo Pasivo de Pausa / Reanudación
+* **Riesgo identificado:**
+  * Al pulsar el botón `Action`, únicamente se suspendía el reloj de repintado de la UI (`GameClock`), pero los hilos virtuales de las serpientes (`SnakeRunner`) continuaban ejecutando su ciclo en segundo plano.
+  * Si se intentara pausar mediante un chequeo continuo en bucle (*busy-wait* o bucles con `Thread.sleep`), se consumirían ciclos de CPU innecesariamente y se generarían retardos e inconsistencias de estado.
+* **Solución aplicada:**
+  * En `Board.java`, se implementó un mecanismo de coordinación basado en un monitor pasivo (`pauseLock`) y un estado `volatile boolean paused`.
+  * En `SnakeRunner.java`, al inicio de cada iteración del bucle se invoca `board.checkPaused()`. Si el juego está en pausa, el hilo adquiere el cerrojo del monitor y ejecuta `pauseLock.wait()`, suspendiendo su ejecución de forma pasiva sin consumo de CPU.
+  * En `SnakeApp.java`, al ejecutar `togglePause()`, se invoca `board.pause()` o `board.resume()`. Al reanudar, se establece `paused = false` y se emite `pauseLock.notifyAll()` sobre el monitor compartido, despertando a todas las serpientes de forma atómica.
+* **Garantías de concurrencia:**
+  * **Sin despertares espurios (*Spurious Wakeups*):** Se evalúa la condición siempre mediante `while (paused) { pauseLock.wait(); }`.
+  * **Sin despertares perdidos (*Lost Wakeups*):** La modificación del estado `paused` y la emisión de `notifyAll()` se realizan dentro del bloque `synchronized (pauseLock)`.
+  * **Sobrecarga casi nula:** Durante la ejecución normal (`paused == false`), la comprobación previa evita adquirir el cerrojo en cada ciclo.
+
+---
+
+#### B. Protección de la Estructura de la Serpiente y Reducción del Alcance de la Región Crítica (`Snake.java`)
+* **Riesgo identificado:**
+  * `Snake.body` es una cola doble (`ArrayDeque<Position>`) no sincronizada.
+  * Mientras el hilo virtual de la serpiente mutaba su cuerpo en `advance()` (`addFirst`, `removeLast`), el hilo de la interfaz gráfica (EDT) leía el cuerpo simultáneamente mediante `snapshot()` dentro de `paintComponent`.
+  * Esto causaba condiciones de carrera (*race conditions*), excepciones `ConcurrentModificationException` y renderizado de cuerpos corruptos (*data tearing*).
+* **Solución aplicada:**
+  * Se declararon como `synchronized` exclusivamente los métodos que leen o mutan la estructura interna de la serpiente: `advance(Position newHead, boolean grow)`, `snapshot()` y `head()`.
+* **Justificación de alcance mínimo:**
+  * La sincronización se realiza a nivel de cada instancia de `Snake` (`this`). 
+  * Cada serpiente posee su propio cerrojo independiente, lo que permite que $N$ serpientes avancen en paralelo sin bloquearse entre sí. El hilo de la UI solo retiene el cerrojo de una serpiente durante los nanosegundos requeridos para clonar su cuerpo (5 a 10 elementos).
+
+---
+
+#### C. Eliminación del Bloqueo Global (*Coarse-Grained Locking*) y Colecciones Concurrentes (`Board.java`)
+* **Riesgo identificado:**
+  * Anteriormente, todo el método `step(Snake snake)` y los métodos `mice()`, `obstacles()`, `turbo()` y `teleports()` estaban marcados como `synchronized` sobre la instancia completa de `Board`.
+  * Esto serializaba la ejecución de todas las serpientes (cuello de botella masivo con $N \ge 20$) y hacía que el repintado de Swing a 60 FPS compitiera por el cerrojo global del tablero, bloqueando el avance del juego.
+  * Además, al comer un ratón se invocaba `randomEmpty()`, ejecutando un bucle de búsqueda aleatoria mientras retenía el cerrojo de todo el tablero.
+* **Solución aplicada:**
+  * Se removió el modificador `synchronized` de `step(Snake snake)` y de los métodos de lectura.
+  * Se migraron las estructuras internas a colecciones concurrentes de `java.util.concurrent`:
+    * `private final Set<Position> mice = ConcurrentHashMap.newKeySet();`
+    * `private final Set<Position> obstacles = ConcurrentHashMap.newKeySet();`
+    * `private final Set<Position> turbo = ConcurrentHashMap.newKeySet();`
+    * `private final Map<Position, Position> teleports = new ConcurrentHashMap<>();`
+  * Las consultas para la UI devuelven vistas inmutables thread-safe (`Set.copyOf(...)`, `Map.copyOf(...)`) sin bloquear las mutaciones en `step()`.
+* **Justificación de alcance mínimo:**
+  * Las operaciones críticas de interacción (`mice.remove(next)`, `turbo.remove(next)`) son operaciones atómicas a nivel de bucket provistas por `ConcurrentHashMap`.
+  * El cálculo del movimiento, envoltura de coordenadas (*wrap*) y verificación de colisiones se ejecutan en paralelo para cada hilo sin retener ningún bloqueo global.
+
+---
+
+#### D. Colección Segura de Serpientes en la Interfaz (`SnakeApp.java`)
+* **Riesgo identificado:**
+  * La lista `snakes` se manejaba con un `ArrayList` estándar.
+  * Iterar sobre la lista desde el hilo de repintado de Swing mientras se crean o modifican serpientes podría generar `ConcurrentModificationException`.
+* **Solución aplicada:**
+  * Se reemplazó por `java.util.concurrent.CopyOnWriteArrayList<Snake>`, garantizando iteraciones completamente seguras y libres de bloqueos para el renderizado en pantalla.
 
 ### 3) Control de ejecución seguro (UI)
 

@@ -20,7 +20,7 @@ public final class SnakeApp extends JFrame {
   private final GamePanel gamePanel;
   private final JButton actionButton;
   private final GameClock clock;
-  private final java.util.List<Snake> snakes = new java.util.ArrayList<>();
+  private final java.util.List<Snake> snakes = new java.util.concurrent.CopyOnWriteArrayList<>();
 
   public SnakeApp() {
     super("The Snake Race");
@@ -132,9 +132,11 @@ public final class SnakeApp extends JFrame {
     if ("Action".equals(actionButton.getText())) {
       actionButton.setText("Resume");
       clock.pause();
+      board.pause();
     } else {
       actionButton.setText("Action");
       clock.resume();
+      board.resume();
     }
   }
 

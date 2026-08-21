@@ -3,33 +3,54 @@ package co.eci.snake.concurrency;
 import co.eci.snake.core.Board;
 import co.eci.snake.core.Direction;
 import co.eci.snake.core.Snake;
+import co.eci.snake.core.engine.GameClock;
 
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class SnakeRunner implements Runnable {
   private final Snake snake;
   private final Board board;
+  private final GameClock clock;
   private final int baseSleepMs = 80;
   private final int turboSleepMs = 40;
   private int turboTicks = 0;
 
-  public SnakeRunner(Snake snake, Board board) {
+  public SnakeRunner(Snake snake, Board board, GameClock clock) {
     this.snake = snake;
     this.board = board;
+    this.clock = clock;
+  }
+
+  public SnakeRunner(Snake snake, Board board) {
+    this(snake, board, null);
   }
 
   @Override
   public void run() {
     try {
+<<<<<<< HEAD
       while (!Thread.currentThread().isInterrupted()) {
         board.checkPaused();
+=======
+      while (!Thread.currentThread().isInterrupted() && snake.isAlive()) {
+        if (clock != null) {
+          clock.awaitIfPaused();
+        }
+        if (!snake.isAlive()) {
+          break;
+        }
+
+>>>>>>> Diego
         maybeTurn();
         var res = board.step(snake);
         if (res == Board.MoveResult.HIT_OBSTACLE) {
           randomTurn();
         } else if (res == Board.MoveResult.ATE_TURBO) {
           turboTicks = 100;
+        } else if (res == Board.MoveResult.DIED) {
+          break;
         }
+
         int sleep = (turboTicks > 0) ? turboSleepMs : baseSleepMs;
         if (turboTicks > 0) turboTicks--;
         Thread.sleep(sleep);

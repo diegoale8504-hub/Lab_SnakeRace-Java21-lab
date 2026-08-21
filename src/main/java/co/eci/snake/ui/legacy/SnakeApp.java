@@ -24,12 +24,8 @@ public final class SnakeApp extends JFrame {
   private final JButton actionButton;
   private final JLabel statusLabel;
   private final GameClock clock;
-<<<<<<< HEAD
-  private final java.util.List<Snake> snakes = new java.util.concurrent.CopyOnWriteArrayList<>();
-=======
   private final List<Snake> snakes = new CopyOnWriteArrayList<>();
   private boolean started = false;
->>>>>>> Diego
 
   public SnakeApp() {
     super("The Snake Race — Concurrencia Segura");
@@ -140,13 +136,6 @@ public final class SnakeApp extends JFrame {
     } else if (clock.isRunning()) {
       // PAUSAR
       clock.pause();
-<<<<<<< HEAD
-      board.pause();
-    } else {
-      actionButton.setText("Action");
-      clock.resume();
-      board.resume();
-=======
       actionButton.setText("Reanudar");
       statusLabel.setText("Estado: ⏸️ En Pausa");
       showPauseStatistics();
@@ -155,7 +144,6 @@ public final class SnakeApp extends JFrame {
       clock.resume();
       actionButton.setText("Pausar");
       statusLabel.setText("Estado: 🟢 En Carrera");
->>>>>>> Diego
     }
   }
 

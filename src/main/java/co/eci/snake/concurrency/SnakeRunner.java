@@ -28,10 +28,6 @@ public final class SnakeRunner implements Runnable {
   @Override
   public void run() {
     try {
-<<<<<<< HEAD
-      while (!Thread.currentThread().isInterrupted()) {
-        board.checkPaused();
-=======
       while (!Thread.currentThread().isInterrupted() && snake.isAlive()) {
         if (clock != null) {
           clock.awaitIfPaused();
@@ -39,8 +35,6 @@ public final class SnakeRunner implements Runnable {
         if (!snake.isAlive()) {
           break;
         }
-
->>>>>>> Diego
         maybeTurn();
         var res = board.step(snake);
         if (res == Board.MoveResult.HIT_OBSTACLE) {

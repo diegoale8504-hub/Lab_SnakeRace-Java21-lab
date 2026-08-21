@@ -1,19 +1,13 @@
 package co.eci.snake.core;
 
-<<<<<<< HEAD
-=======
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
->>>>>>> Diego
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-<<<<<<< HEAD
-=======
 import java.util.concurrent.CopyOnWriteArrayList;
->>>>>>> Diego
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Board {
@@ -24,12 +18,7 @@ public final class Board {
   private final Set<Position> obstacles = ConcurrentHashMap.newKeySet();
   private final Set<Position> turbo = ConcurrentHashMap.newKeySet();
   private final Map<Position, Position> teleports = new ConcurrentHashMap<>();
-<<<<<<< HEAD
 
-  private volatile boolean paused = false;
-  private final Object pauseLock = new Object();
-=======
->>>>>>> Diego
 
   private final List<Snake> snakes = new CopyOnWriteArrayList<>();
   private final List<Snake> deathOrder = new CopyOnWriteArrayList<>();
@@ -56,40 +45,6 @@ public final class Board {
   public int width() { return width; }
   public int height() { return height; }
 
-<<<<<<< HEAD
-  public void pause() {
-    synchronized (pauseLock) {
-      paused = true;
-    }
-  }
-
-  public void resume() {
-    synchronized (pauseLock) {
-      paused = false;
-      pauseLock.notifyAll();
-    }
-  }
-
-  public boolean isPaused() {
-    return paused;
-  }
-
-  public void checkPaused() throws InterruptedException {
-    if (paused) {
-      synchronized (pauseLock) {
-        while (paused) {
-          pauseLock.wait();
-        }
-      }
-    }
-  }
-
-  public Set<Position> mice() { return Set.copyOf(mice); }
-  public Set<Position> obstacles() { return Set.copyOf(obstacles); }
-  public Set<Position> turbo() { return Set.copyOf(turbo); }
-  public Map<Position, Position> teleports() { return Map.copyOf(teleports); }
-
-=======
   public Set<Position> mice() { return new HashSet<>(mice); }
   public Set<Position> obstacles() { return new HashSet<>(obstacles); }
   public Set<Position> turbo() { return new HashSet<>(turbo); }
@@ -101,8 +56,6 @@ public final class Board {
       deathOrder.add(snake);
     }
   }
-
->>>>>>> Diego
   public MoveResult step(Snake snake) {
     Objects.requireNonNull(snake, "snake");
     if (!snake.isAlive()) return MoveResult.DIED;

@@ -52,13 +52,6 @@ public final class Snake {
     this.direction = dir;
   }
 
-<<<<<<< HEAD
-  public synchronized Position head() { return body.peekFirst(); }
-
-  public synchronized Deque<Position> snapshot() { return new ArrayDeque<>(body); }
-
-  public synchronized void advance(Position newHead, boolean grow) {
-=======
   public synchronized Position head() {
     return body.peekFirst();
   }
@@ -78,7 +71,6 @@ public final class Snake {
 
   public synchronized void advance(Position newHead, boolean grow) {
     if (!alive) return;
->>>>>>> Diego
     body.addFirst(newHead);
     if (grow) maxLength++;
     while (body.size() > maxLength) {
